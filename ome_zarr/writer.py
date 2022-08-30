@@ -182,8 +182,9 @@ def write_multiscale(
     coordinate_transformations: List[List[Dict[str, Any]]] = None,
     storage_options: Union[JSONDict, List[JSONDict]] = None,
     name: str = None,
+    compute_dask: bool = True,
     **metadata: Union[str, JSONDict, List[JSONDict]],
-) -> None:
+) :
     """
     Write a pyramid with multiscale metadata to disk.
 
@@ -219,6 +220,9 @@ def write_multiscale(
         A list would need to match the number of datasets in a multiresolution pyramid.
         One can provide different chunk size for each level of a pyramid using this
         option.
+    :type compute_dask: boolean, optional
+    :param compute_dask:
+        A boolean that dictates if dask will compute the delayed function (True) or if will return it in an array (False).
     """
     dims = len(pyramid[0].shape)
     axes = _get_valid_axes(dims, axes, fmt)
@@ -228,6 +232,8 @@ def write_multiscale(
 Please use the 'storage_options' argument instead."""
         warnings.warn(msg, DeprecationWarning)
 
+    dask_jobs = []
+    
     datasets: List[dict] = []
     for path, data in enumerate(pyramid):
         options = _resolve_storage_options(storage_options, path)
@@ -245,14 +251,20 @@ Please use the 'storage_options' argument instead."""
             if chunks_opt is not None:
                 data = da.array(data).rechunk(chunks=chunks_opt)
                 options["chunks"] = chunks_opt
-            da.to_zarr(
+            
+            da_job = da.to_zarr(
                 array_key=path,
                 arr=data,
                 url=group.store,
                 component=str(Path(group.path, str(path))),
                 storage_options=options,
                 compressor=options.get("compressor"),
+                compute=compute_dask
             )
+            
+            if not compute_dask:    
+                dask_jobs.append(da_job)
+            
         else:
             group.create_dataset(str(path), data=data, chunks=chunks_opt, **options)
 
@@ -272,6 +284,7 @@ Please use the 'storage_options' argument instead."""
 
     write_multiscales_metadata(group, datasets, fmt, axes, name, **metadata)
 
+    return dask_jobs
 
 def write_multiscales_metadata(
     group: zarr.Group,
