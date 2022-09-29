@@ -253,7 +253,7 @@ Please use the 'storage_options' argument instead."""
                 options["chunks"] = chunks_opt
             
             da_job = da.to_zarr(
-                array_key=path,
+                # array_key=path,
                 arr=data,
                 url=group.store,
                 component=str(Path(group.path, str(path))),
